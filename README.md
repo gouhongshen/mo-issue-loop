@@ -18,9 +18,10 @@ this repository and runner artifacts.
 One `workflow_dispatch` job hosts serial tasks for at most 340 minutes, measured
 from its first step, within GitHub's 360-minute job limit. The local SQLite pool
 persists dispatch intent before calling GitHub, reconciles unknown outcomes, and
-holds a process lock for each task. No requests means no new VM. An idle VM exits
-after 30 minutes. Insufficient time or disk headroom drains it before another
-request is admitted. Failed startups retry with 5-minute to 1-hour backoff.
+holds a process lock for each task. No requests means no new VM. An existing VM
+retains its caches across idle periods until its lifetime ends. Insufficient time
+or disk headroom drains it before another request is admitted. Failed startups
+retry with 5-minute to 1-hour backoff; a changed workflow revision can retry sooner.
 
 A task reserves build + test + 15 minutes, plus 5 minutes of runner cleanup
 headroom. A 30-second heartbeat renews ownership, not its absolute deadline;

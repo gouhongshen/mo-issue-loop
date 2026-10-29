@@ -39,6 +39,13 @@ class LeaseTest(unittest.TestCase):
         self.now += 100
         self.assertTrue(self.lease.should_exit())
 
+    def test_default_keeps_idle_runner_until_lifetime_limit(self):
+        lease = Lease(lifetime=20400, clock=lambda: self.now)
+        self.now += 1801
+        self.assertFalse(lease.should_exit())
+        self.now += 20400
+        self.assertTrue(lease.should_exit())
+
 
 if __name__ == "__main__":
     unittest.main()

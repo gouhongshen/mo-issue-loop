@@ -9,7 +9,7 @@ class Conflict(ValueError):
 
 
 class Lease:
-    def __init__(self, lifetime=20400, idle=1800, heartbeat=180, clock=time.monotonic):
+    def __init__(self, lifetime=20400, idle=None, heartbeat=180, clock=time.monotonic):
         self.clock = clock
         self.deadline = clock() + lifetime
         self.idle_timeout, self.heartbeat_timeout = idle, heartbeat
@@ -59,4 +59,5 @@ class Lease:
 
     def should_exit(self):
         return (self.clock() >= self.deadline or
-                (not self.task and (self.draining or self.clock() - self.last_idle >= self.idle_timeout)))
+                (not self.task and (self.draining or
+                 (self.idle_timeout is not None and self.clock() - self.last_idle >= self.idle_timeout))))
