@@ -1,0 +1,79 @@
+name: Challenger runner
+run-name: challenger-${{ inputs.instance }}
+on:
+  workflow_dispatch:
+    inputs:
+      instance:
+        description: Controller-generated unique instance ID
+        required: true
+        type: string
+      ssh_public_key:
+        description: Tunnel-only Ed25519 public key (never a private key)
+        required: true
+        type: string
+permissions:
+  contents: read
+  packages: read
+  id-token: write
+concurrency:
+  group: mo-challenger-single-runner
+  cancel-in-progress: false
+jobs:
+  runner:
+    if: github.ref == 'refs/heads/main' && github.actor == github.repository_owner
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      CONTROLLER_IP: ${{ vars.CONTROLLER_IP }}
+      RUNNER_IMAGE: ${{ vars.RUNNER_IMAGE }}
+    steps:
+      - name: Record lifetime anchor
+        run: echo "JOB_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Validate configuration
+        env:
+          CLIENT_ID: ${{ vars.TS_CLIENT_ID }}
+          AUDIENCE: ${{ vars.TS_AUDIENCE }}
+          TAG: ${{ vars.TS_TAG }}
+        run: |
+          test -n "$CLIENT_ID" && test -n "$AUDIENCE" && test "$TAG" = tag:mo-challenger
+          [[ "$RUNNER_IMAGE" =~ ^ghcr.io/gouhongshen/mo-issue-loop/base@sha256:[0-9a-f]{64}$ ]]
+      - name: Apply isolation before joining tailnet
+        run: bash scripts/firewall.sh
+      - uses: tailscale/github-action@99a8333667fff04fdd6cffb46dfd409f8329a7bf
+        with:
+          oauth-client-id: ${{ vars.TS_CLIENT_ID }}
+          audience: ${{ vars.TS_AUDIENCE }}
+          tags: ${{ vars.TS_TAG }}
+          hostname: mo-challenger-${{ github.run_id }}
+          args: --accept-dns=false --accept-routes=false
+      - name: Pull pinned build environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_REPOSITORY_OWNER" --password-stdin
+          docker pull "$RUNNER_IMAGE"
+          docker logout ghcr.io
+      - name: Set up tunnel-only endpoint
+        env:
+          INSTANCE: ${{ inputs.instance }}
+          SSH_PUBLIC_KEY: ${{ inputs.ssh_public_key }}
+        run: python3 scripts/bootstrap.py
+      - name: Publish endpoint identity (no secrets or test evidence)
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: runner-${{ inputs.instance }}
+          path: runner-info/runner.json
+          retention-days: 1
+      - name: Serve serial challenge requests
+        run: |
+          remaining=$((20400 - $(date +%s) + JOB_STARTED_AT))
+          test "$remaining" -gt 1800
+          python3 -m mo_runner.server --root "$RUNNER_TEMP/mo-tasks" \
+            --image "$RUNNER_IMAGE" --token-file "$RUNNER_TEMP/mo-private/admin-token" --lifetime "$remaining"
+      - name: Remove owned containers
+        if: always()
+        run: |
+          docker ps -aq --filter name=mo-challenge- | xargs -r docker rm -f
