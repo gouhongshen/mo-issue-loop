@@ -21,6 +21,7 @@ jobs:
           image="ghcr.io/$GITHUB_REPOSITORY/base:$GITHUB_SHA"
           docker build -t "$image" .
           docker run --rm "$image" go version
+          docker run --rm "$image" bzip2 --help
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_REPOSITORY_OWNER" --password-stdin
           docker push "$image"
           docker inspect --format '{{index .RepoDigests 0}}' "$image" > image.txt
