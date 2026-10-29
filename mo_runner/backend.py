@@ -59,7 +59,13 @@ class DockerBackend:
 
     def status(self, task):
         state = task / "runtime-state.json"
-        return json.loads(state.read_text()) if state.exists() else {"status": "STARTING"}
+        value = json.loads(state.read_text()) if state.exists() else {"status": "STARTING"}
+        if value["status"] == "READY":
+            result = subprocess.run(["docker", "inspect", "--format", "{{.State.Running}}", self.name(task.name, "runtime")],
+                                    capture_output=True, text=True, timeout=15)
+            if result.returncode or result.stdout.strip() != "true":
+                return {"status": "FAILED", "error": "runtime container is no longer running"}
+        return value
 
     def control(self, task, action):
         if action not in {"status", "kill", "start"}:

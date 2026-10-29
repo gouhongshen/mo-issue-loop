@@ -48,12 +48,18 @@ class Broker:
         if any(type(value[key]) is not int or not 60 <= value[key] <= 10800 for key in ("build_timeout", "test_timeout")):
             raise ValueError("invalid task timeout")
         if shutil.disk_usage(self.root).free < 6 * 1024 ** 3:
+            self.lease.draining = True
             raise Conflict("insufficient disk headroom; runner must be retired")
         with self.lock:
             lease = self.lease.claim(value["task_id"], value["build_timeout"] + value["test_timeout"] + 900)
             self.task = self.root / value["task_id"]
-            self.task.mkdir()
-            (self.task / "logs").mkdir()
+            try:
+                self.task.mkdir()
+                (self.task / "logs").mkdir()
+            except Exception:
+                self.lease.draining = True
+                self.lease.release()
+                raise
             self.request = value
             (self.task / "request.json").write_text(json.dumps(value))
             self.phase, self.error, self.build_info = "UPLOADING", None, None
@@ -105,9 +111,19 @@ class Broker:
     def collect(self):
         buffer = io.BytesIO()
         with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
+            remaining = 64 * 1024 ** 2
             for path in sorted((self.task / "logs").rglob("*")):
                 if path.is_file() and not path.is_symlink():
-                    archive.add(path, arcname=str(path.relative_to(self.task)), recursive=False)
+                    # Bound diagnostics even when a broken target floods logs.
+                    with path.open("rb") as reader:
+                        reader.seek(max(0, path.stat().st_size - min(8 * 1024 ** 2, remaining)))
+                        content = reader.read(min(8 * 1024 ** 2, remaining))
+                    info = tarfile.TarInfo(str(path.relative_to(self.task)))
+                    info.size = len(content)
+                    archive.addfile(info, io.BytesIO(content))
+                    remaining -= len(content)
+                    if not remaining:
+                        break
             payload = json.dumps(self.info()).encode()
             info = tarfile.TarInfo("runner-result.json")
             info.size = len(payload)

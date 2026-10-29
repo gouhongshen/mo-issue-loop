@@ -48,7 +48,7 @@ jobs:
           audience: ${{ vars.TS_AUDIENCE }}
           tags: ${{ vars.TS_TAG }}
           hostname: mo-challenger-${{ github.run_id }}
-          args: --accept-dns=false --accept-routes=false
+          args: --accept-dns=false --accept-routes=false --netfilter-mode=off
       - name: Pull pinned build environment
         env:
           GH_TOKEN: ${{ github.token }}
