@@ -1,4 +1,4 @@
-FROM golang:1.27.0-bookworm@sha256:ba5ef6614ca131b80a635fc6a7b715d9ee8a7f333debdbb81afb68259c7d48d4
+FROM golang:1.27.1-bookworm@sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake g++ make git pkg-config libssl-dev python3 default-mysql-client \
     ca-certificates libgomp1 procps \

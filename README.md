@@ -74,6 +74,9 @@ artifact to set `RUNNER_IMAGE`. The image contains only tools and this public
 runtime, never a candidate MO binary. CGO libraries and the exact uploaded source
 are rebuilt for each task. Shared Go caches accelerate later builds on that VM;
 candidate compiler caches are not published to Actions caches or container images.
+The pinned Go toolchain must satisfy each candidate's `go.mod`; automatic toolchain
+downloads are disabled. After changing `RUNNER_IMAGE`, drain the idle old runner
+before testing so the next request starts a VM with the new image.
 
 The existing issue loop opts in with
 `ISSUE_FIX_CHALLENGER_ACTIONS_RUNNER_ROOT=/absolute/path/to/mo-issue-loop`.
