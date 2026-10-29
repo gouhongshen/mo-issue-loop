@@ -11,12 +11,12 @@ import time
 import uuid
 
 from mo_runner.pool import Pool
-from mo_runner.snapshot import extract, digest_file
+from mo_runner.snapshot import extract, digest_file, source_paths
 
 
 def bundle(worktree, output):
     root = Path(worktree)
-    names = sorted(set(subprocess.check_output(["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=root).split(b"\0")) - {b""})
+    names = source_paths(root)
     digest = hashlib.sha256()
     with tarfile.open(output, "w:gz", compresslevel=1) as archive:
         for name in names:
@@ -24,7 +24,7 @@ def bundle(worktree, output):
             if not path.exists() and not path.is_symlink():
                 continue
             if not path.is_file() or path.is_symlink():
-                raise ValueError("source directories/submodules/symlinks require an explicit snapshot implementation")
+                raise ValueError("source directories/symlinks require an explicit snapshot implementation")
             if any(part in {".git", ".env", "auth.json", "credentials.json"} or part.startswith(".env.") for part in Path(os.fsdecode(name)).parts):
                 raise ValueError("credential-like file in source snapshot")
             digest.update(name + b"\0" + str(path.stat().st_mode & 0o777).encode() + b"\0")

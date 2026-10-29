@@ -3,7 +3,26 @@ import hashlib
 import os
 from pathlib import Path, PurePosixPath
 import shutil
+import subprocess
 import tarfile
+
+
+def source_paths(worktree):
+    """Match the loop's content inventory, excluding only empty gitlinks.
+
+    Git creates empty directories for uninitialized submodules. They contain no
+    build input; populated submodules remain unsupported and must fail closed.
+    """
+    names = subprocess.check_output(
+        ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=worktree
+    ).split(b"\0")
+    entries = subprocess.check_output(["git", "ls-files", "--stage", "-z"], cwd=worktree).split(b"\0")
+    gitlinks = {entry.split(b"\t", 1)[1] for entry in entries if entry.startswith(b"160000 ")}
+    for name in gitlinks:
+        path = Path(worktree) / os.fsdecode(name)
+        if path.is_symlink() or (path.exists() and (not path.is_dir() or any(path.iterdir()))):
+            raise ValueError("populated submodule requires a separate source snapshot: " + os.fsdecode(name))
+    return sorted(set(names) - {b""} - gitlinks)
 
 
 def digest_file(path):

@@ -93,5 +93,7 @@ The opt-in live test creates two fresh environments on one VM, checks cross-CN
 SQL, abruptly terminates/restarts CN1, checks survivor availability, and proves
 the second task has no database left by the first. It retains local receipts and
 build/start timings. These are infrastructure smoke tests, not evidence that any
-particular issue is fixed. Source symlinks/submodules are explicitly unsupported
-until a safe manifest contract is implemented; they are never silently omitted.
+particular issue is fixed. Empty, uninitialized Git submodule placeholders have
+no source bytes and are excluded from the content hash and archive, just like
+absent placeholders. Populated submodules and source symlinks remain explicitly
+unsupported until a safe manifest contract is implemented.

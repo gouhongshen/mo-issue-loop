@@ -9,6 +9,34 @@ from mo_runner.snapshot import extract, tree_digest
 
 
 class SnapshotTest(unittest.TestCase):
+    def test_empty_gitlink_roundtrip_and_populated_gitlink_rejection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            source.mkdir()
+            def git(*args):
+                return subprocess.check_output(["git", *args], cwd=source)
+            git("init", "-q")
+            (source / "source.go").write_text("package main\n")
+            git("add", ".")
+            git("-c", "user.name=test", "-c", "user.email=test@localhost", "commit", "-qm", "base")
+            head = git("rev-parse", "HEAD").decode().strip()
+            git("update-index", "--add", "--cacheinfo", "160000," + head + ",submodule")
+            archive = root / "snapshot.tar.gz"
+            absent = bundle(source, archive)
+            (source / "submodule").mkdir()
+            self.assertEqual(bundle(source, archive), absent)
+            extract(archive, root / "received")
+            self.assertEqual(tree_digest(root / "received"), absent["tree_sha256"])
+            (source / "submodule/.git").write_text("gitdir: elsewhere")
+            with self.assertRaisesRegex(ValueError, "populated submodule"):
+                bundle(source, archive)
+            (source / "submodule/.git").unlink()
+            (source / "submodule").rmdir()
+            (source / "submodule").symlink_to(source, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "populated submodule"):
+                bundle(source, archive)
+
     def test_bundle_transfers_exact_dirty_tree_not_ignored_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
