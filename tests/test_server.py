@@ -105,3 +105,4 @@ class BrokerTest(unittest.TestCase):
         with tarfile.open(fileobj=io.BytesIO(self.broker.collect()), mode="r:gz") as archive:
             self.assertEqual(set(archive.getnames()), {"logs/build.log", "runner-result.json"})
             self.assertNotIn(token, archive.extractfile("runner-result.json").read().decode())
+        self.backend.diagnostics.assert_called_once_with(self.broker.task, self.broker.request)

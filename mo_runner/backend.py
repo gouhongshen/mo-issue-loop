@@ -91,10 +91,12 @@ class DockerBackend:
         if name in known:
             subprocess.run(["docker", "rm", "--force", name], check=True, capture_output=True, timeout=60)
 
+    def diagnostics(self, task, request):
+        name = self.name(request["task_id"], "runtime")
+        with (task / "logs/container.log").open("wb") as output:
+            subprocess.run(["docker", "logs", "--tail", "10000", name],
+                           stdout=output, stderr=subprocess.STDOUT, timeout=30)
+
     def cleanup(self, task, request):
         for role in ("runtime", "build"):
-            name = self.name(request["task_id"], role)
-            if role == "runtime":
-                result = subprocess.run(["docker", "logs", name], capture_output=True, timeout=30)
-                (task / "logs/container.log").write_bytes(result.stdout + result.stderr)
-            self.remove(name)
+            self.remove(self.name(request["task_id"], role))

@@ -109,6 +109,7 @@ class Broker:
         self.worker.start()
 
     def collect(self):
+        self.backend.diagnostics(self.task, self.request)
         buffer = io.BytesIO()
         with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
             remaining = 64 * 1024 ** 2
