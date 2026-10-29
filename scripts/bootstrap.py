@@ -8,12 +8,17 @@ import secrets
 import subprocess
 
 
+def public_key(value):
+    match = re.fullmatch(r"(ssh-ed25519 [A-Za-z0-9+/=]+)(?: [^\r\n]+)?", value.strip())
+    if not match:
+        raise ValueError("expected an Ed25519 public key")
+    return match.group(1)
+
+
 def main():
     if os.environ.get("GITHUB_ACTIONS") != "true":
         raise RuntimeError("bootstrap is restricted to GitHub Actions")
-    public = os.environ["SSH_PUBLIC_KEY"].strip()
-    if not re.fullmatch(r"ssh-ed25519 [A-Za-z0-9+/=]+(?: [A-Za-z0-9_.-]+)?", public):
-        raise ValueError("expected an Ed25519 public key")
+    public = public_key(os.environ["SSH_PUBLIC_KEY"])
     instance = os.environ["INSTANCE"]
     if not re.fullmatch(r"[a-f0-9]{32}", instance):
         raise ValueError("invalid instance identity")

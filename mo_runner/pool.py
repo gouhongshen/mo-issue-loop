@@ -176,7 +176,11 @@ class Pool:
         if instance and instance.get("failed_at"):
             delay = min(3600, 300 * 2 ** min(instance.get("failures", 1) - 1, 4))
             if time.time() - instance["failed_at"] < delay:
-                raise RuntimeError("failed runner is cooling down before a new dispatch")
+                failed = self.run_status(instance)
+                current = self.gh("git/ref/heads/main")["object"]["sha"]
+                if (not failed or failed["status"] != "completed" or
+                        failed.get("head_sha") == current):
+                    raise RuntimeError("failed runner is cooling down before a new dispatch")
             instance = None
         deadline = time.monotonic() + 1500
         while time.monotonic() < deadline:

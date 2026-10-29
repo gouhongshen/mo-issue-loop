@@ -33,13 +33,28 @@ class PoolTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             pool = Pool(directory)
             pool.save({"instance": "a" * 32, "requested_at": 1, "run_id": 7, "failed_at": 100, "failures": 1})
-            with patch("mo_runner.pool.time.time", return_value=200), patch.object(pool, "dispatch") as dispatch:
+            with patch("mo_runner.pool.time.time", return_value=200), patch.object(pool, "dispatch") as dispatch, \
+                    patch.object(pool, "run_status", return_value={"status": "completed", "head_sha": "a" * 40}), \
+                    patch.object(pool, "gh", return_value={"object": {"sha": "a" * 40}}):
                 with self.assertRaisesRegex(RuntimeError, "cooling down"):
                     pool.acquire(100)
                 dispatch.assert_not_called()
             with patch("mo_runner.pool.time.time", return_value=401), \
                     patch.object(pool, "dispatch", side_effect=RuntimeError("new dispatch")) as dispatch:
                 with self.assertRaisesRegex(RuntimeError, "new dispatch"):
+                    pool.acquire(100)
+                dispatch.assert_called_once()
+            pool.close()
+
+    def test_repaired_workflow_can_retry_failed_startup_immediately(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pool = Pool(directory)
+            pool.save({"instance": "a" * 32, "requested_at": 1, "run_id": 7, "failed_at": 100, "failures": 3})
+            with patch("mo_runner.pool.time.time", return_value=101), \
+                    patch.object(pool, "run_status", return_value={"status": "completed", "head_sha": "a" * 40}), \
+                    patch.object(pool, "gh", return_value={"object": {"sha": "b" * 40}}), \
+                    patch.object(pool, "dispatch", side_effect=RuntimeError("new revision")) as dispatch:
+                with self.assertRaisesRegex(RuntimeError, "new revision"):
                     pool.acquire(100)
                 dispatch.assert_called_once()
             pool.close()
