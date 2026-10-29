@@ -48,7 +48,9 @@ jobs:
           audience: ${{ vars.TS_AUDIENCE }}
           tags: ${{ vars.TS_TAG }}
           hostname: mo-challenger-${{ github.run_id }}
-          args: --accept-dns=false --accept-routes=false --netfilter-mode=off
+          args: --accept-dns=false --netfilter-mode=off
+      - name: Disable route acceptance imposed by the upstream action
+        run: sudo tailscale set --accept-routes=false
       - name: Pull pinned build environment
         env:
           GH_TOKEN: ${{ github.token }}
