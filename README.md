@@ -15,8 +15,8 @@ this repository and runner artifacts.
 
 ## Lifecycle
 
-One `workflow_dispatch` job hosts serial tasks for at most 340 minutes, measured
-from its first step, within GitHub's 360-minute job limit. The local SQLite pool
+Each of two independently locked runner slots hosts serial tasks for at most 117
+minutes, measured from its first step, within GitHub's 120-minute job limit. The local SQLite pool
 persists dispatch intent before calling GitHub, reconciles unknown outcomes, and
 holds a process lock for each task. No requests means no new VM. An existing VM
 retains its caches across idle periods until its lifetime ends. Insufficient time
@@ -24,9 +24,11 @@ or disk headroom drains it before another request is admitted. Failed startups
 retry with 5-minute to 1-hour backoff; a changed workflow revision can retry sooner.
 
 A task reserves build + test + 15 minutes, plus 5 minutes of runner cleanup
-headroom. A 30-second heartbeat renews ownership, not its absolute deadline;
-orphaned tasks expire after 3 minutes. The task UUID and random lease token fence
-stale commands. The runner cannot return to IDLE until containers and task data
+headroom. Source archives and their checksums are prepared before runner selection.
+Acquisition includes the broker's atomic lease claim; a runner whose lifetime
+crosses the admission boundary retires through the pool's existing reconciliation.
+A 30-second heartbeat renews ownership, not its absolute deadline; orphaned tasks
+expire after 3 minutes. The task UUID and random lease token fence stale commands. The runner cannot return to IDLE until containers and task data
 are removed. Only compiler/module caches survive between tasks.
 
 ## Isolation

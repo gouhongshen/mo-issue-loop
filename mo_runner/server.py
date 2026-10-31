@@ -15,12 +15,12 @@ import threading
 import time
 
 from mo_runner.backend import DockerBackend
-from mo_runner.lease import Lease, Conflict
+from mo_runner.lease import Lease, Conflict, RUNNER_LIFETIME_SECONDS
 from mo_runner.snapshot import extract, tree_digest
 
 
 class Broker:
-    def __init__(self, root, backend, lifetime=20400, token=None):
+    def __init__(self, root, backend, lifetime=RUNNER_LIFETIME_SECONDS, token=None):
         self.root, self.backend = Path(root), backend
         self.root.mkdir(parents=True, exist_ok=True)
         self.lease = Lease(lifetime=lifetime)
@@ -231,7 +231,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", required=True)
     parser.add_argument("--image", required=True)
-    parser.add_argument("--lifetime", type=int, default=20400)
+    parser.add_argument("--lifetime", type=int, default=RUNNER_LIFETIME_SECONDS)
     parser.add_argument("--token-file", required=True)
     args = parser.parse_args()
     broker = Broker(args.root, DockerBackend(args.root, args.image), args.lifetime,

@@ -3,13 +3,15 @@ import re
 import secrets
 import time
 
+RUNNER_LIFETIME_SECONDS = 117 * 60
+
 
 class Conflict(ValueError):
     pass
 
 
 class Lease:
-    def __init__(self, lifetime=20400, idle=None, heartbeat=180, clock=time.monotonic):
+    def __init__(self, lifetime=RUNNER_LIFETIME_SECONDS, idle=None, heartbeat=180, clock=time.monotonic):
         self.clock = clock
         self.deadline = clock() + lifetime
         self.idle_timeout, self.heartbeat_timeout = idle, heartbeat

@@ -37,8 +37,8 @@ def bundle(worktree, output):
 
 
 class Target:
-    def __init__(self, state, output, worktree, source, target_branch, build_timeout, test_timeout):
-        self.pool, self.output = Pool(state), Path(output)
+    def __init__(self, state, output, worktree, source, target_branch, build_timeout, test_timeout, slot=0):
+        self.pool, self.output = Pool(state, slot=slot), Path(output)
         self.worktree, self.source, self.target_branch = worktree, source, target_branch
         self.build_timeout, self.test_timeout = build_timeout, test_timeout
         self.id, self.token = uuid.uuid4().hex, None
@@ -53,15 +53,18 @@ class Target:
 
     def start(self):
         self.output.mkdir(parents=True, exist_ok=True)
-        tunnel = self.pool.acquire(self.build_timeout + self.test_timeout + 900)
-        self.rpc, self.ports = tunnel.rpc, tunnel.ports[1:]
         with tempfile.TemporaryDirectory(dir=self.output) as directory:
             archive = Path(directory) / "source.tar.gz"
             if bundle(self.worktree, archive) != self.source:
                 raise RuntimeError("source changed while preparing runner snapshot")
-            lease = self.rpc.call("POST", "/tasks", {"task_id": self.id, "source": self.source,
+            request = {"task_id": self.id, "source": self.source,
                 "target_branch": self.target_branch, "build_timeout": self.build_timeout,
-                "test_timeout": self.test_timeout, "archive_sha256": digest_file(archive)})
+                "test_timeout": self.test_timeout, "archive_sha256": digest_file(archive)}
+            # Snapshot preparation is unbounded local work. Finish it before
+            # selecting a runner, and acquire an actual lease rather than a
+            # health observation which can expire before admission.
+            tunnel, lease = self.pool.acquire(request)
+            self.rpc, self.ports = tunnel.rpc, tunnel.ports[1:]
             self.token = lease["token"]
             def beat():
                 while not self.cancel.wait(30):

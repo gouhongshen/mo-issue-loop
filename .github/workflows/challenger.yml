@@ -7,6 +7,12 @@ on:
         description: Controller-generated unique instance ID
         required: true
         type: string
+      slot:
+        description: Isolated runner slot
+        required: false
+        type: choice
+        options: ['0', '1']
+        default: '0'
       ssh_public_key:
         description: Tunnel-only Ed25519 public key (never a private key)
         required: true
@@ -16,13 +22,13 @@ permissions:
   packages: read
   id-token: write
 concurrency:
-  group: mo-challenger-single-runner
+  group: ${{ inputs.slot == '1' && 'mo-challenger-slot-1' || 'mo-challenger-single-runner' }}
   cancel-in-progress: false
 jobs:
   runner:
-    if: github.ref == 'refs/heads/main' && github.actor == github.repository_owner
+    if: github.ref == 'refs/heads/main' && github.actor == github.repository_owner && (inputs.slot == '' || inputs.slot == '0' || inputs.slot == '1')
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
+    timeout-minutes: 120
     env:
       CONTROLLER_IP: ${{ vars.CONTROLLER_IP }}
       RUNNER_IMAGE: ${{ vars.RUNNER_IMAGE }}
@@ -71,7 +77,8 @@ jobs:
           retention-days: 1
       - name: Serve serial challenge requests
         run: |
-          remaining=$((20400 - $(date +%s) + JOB_STARTED_AT))
+          lifetime=$(python3 -c 'from mo_runner.lease import RUNNER_LIFETIME_SECONDS; print(RUNNER_LIFETIME_SECONDS)')
+          remaining=$((lifetime - $(date +%s) + JOB_STARTED_AT))
           test "$remaining" -gt 1800
           python3 -m mo_runner.server --root "$RUNNER_TEMP/mo-tasks" \
             --image "$RUNNER_IMAGE" --token-file "$RUNNER_TEMP/mo-private/admin-token" --lifetime "$remaining"

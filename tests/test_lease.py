@@ -1,5 +1,5 @@
 import unittest
-from mo_runner.lease import Lease, Conflict
+from mo_runner.lease import Lease, Conflict, RUNNER_LIFETIME_SECONDS
 
 
 class LeaseTest(unittest.TestCase):
@@ -40,11 +40,20 @@ class LeaseTest(unittest.TestCase):
         self.assertTrue(self.lease.should_exit())
 
     def test_default_keeps_idle_runner_until_lifetime_limit(self):
-        lease = Lease(lifetime=20400, clock=lambda: self.now)
+        lease = Lease(clock=lambda: self.now)
         self.now += 1801
         self.assertFalse(lease.should_exit())
-        self.now += 20400
+        self.now += RUNNER_LIFETIME_SECONDS - 1801
         self.assertTrue(lease.should_exit())
+
+    def test_default_budget_fits_a_fresh_two_hour_runner(self):
+        lease = Lease(clock=lambda: self.now)
+        self.now += 60
+        self.assertEqual(lease.claim(self.task, 1800 + 3600 + 900)["task_id"], self.task)
+        lease.release()
+        self.now += RUNNER_LIFETIME_SECONDS - 6600 - 60
+        with self.assertRaisesRegex(Conflict, "insufficient remaining lifetime"):
+            lease.claim("b" * 32, 1800 + 3600 + 900)
 
 
 if __name__ == "__main__":
