@@ -1,4 +1,7 @@
+FROM golang:1.26.4-bookworm@sha256:b305420a68d0f229d91eb3b3ed9e519fcf2cf5461da4bef997bf927e8c0bfd2b AS go126
 FROM golang:1.27.1-bookworm@sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66
+COPY --from=go126 /usr/local/go /opt/go/1.26.4
+RUN mkdir -p /opt/go && ln -s /usr/local/go /opt/go/1.27.1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake g++ make git pkg-config libssl-dev python3 default-mysql-client \
     ca-certificates libgomp1 procps bzip2 \
