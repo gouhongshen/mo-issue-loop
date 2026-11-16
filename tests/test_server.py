@@ -1,6 +1,7 @@
 import hashlib
 import io
 import json
+import stat
 from pathlib import Path
 import shutil
 import tarfile
@@ -51,6 +52,38 @@ class BrokerTest(unittest.TestCase):
         self.assertFalse((Path(self.directory.name) / old["task_id"]).exists())
         new = self.broker.claim(request("d" * 32))
         self.assertNotEqual(old["token"], new["token"])
+
+    def test_release_removes_readonly_module_dirs_without_following_symlinks(self):
+        self.broker.claim(request())
+        task = self.broker.task
+        cache = task / "mod-cache" / "module@v1.2.0"
+        cache.mkdir(parents=True)
+        (cache / "doc.go").write_text("package probe")
+        (cache / "doc.go").chmod(0o444)
+        outside = Path(self.directory.name) / "outside"
+        outside.mkdir()
+        (outside / "retained").write_text("must survive")
+        outside.chmod(0o555)
+        (task / "external-link").symlink_to(outside, target_is_directory=True)
+        cache.chmod(0o555)
+        cache.parent.chmod(0o555)
+        stopped = []
+        self.backend.cleanup.side_effect = lambda *_: stopped.append(cache.exists())
+        try:
+            self.broker.release()
+            self.assertEqual(stopped, [True])
+            self.assertFalse(task.exists())
+            self.assertEqual((outside / "retained").read_text(), "must survive")
+            self.assertEqual(stat.S_IMODE(outside.stat().st_mode), 0o555)
+            self.assertEqual(self.broker.info()["state"], "IDLE")
+            self.broker.claim(request("d" * 32))
+        finally:
+            outside.chmod(0o755)
+            # Baseline failure must not break the fixture's own cleanup.
+            if cache.parent.exists():
+                cache.parent.chmod(0o755)
+            if cache.exists():
+                cache.chmod(0o755)
 
     def test_bad_upload_cannot_start(self):
         self.broker.claim(request())

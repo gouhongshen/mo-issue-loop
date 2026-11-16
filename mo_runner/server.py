@@ -10,6 +10,7 @@ import re
 import secrets
 import shutil
 import signal
+import stat
 import tarfile
 import threading
 import time
@@ -17,6 +18,27 @@ import time
 from mo_runner.backend import DockerBackend
 from mo_runner.lease import Lease, Conflict, RUNNER_LIFETIME_SECONDS
 from mo_runner.snapshot import extract, tree_digest
+
+
+def remove_task_tree(task):
+    """Remove stopped task scratch, including Go's read-only module directories.
+
+    Only directory owner permissions are restored. Symlinks are never followed;
+    deletion failures still fence the lease rather than admitting another task.
+    """
+    def writable(directory):
+        mode = os.lstat(directory).st_mode
+        if stat.S_ISDIR(mode):
+            os.chmod(directory, mode | stat.S_IRWXU, follow_symlinks=False)
+
+    def fail(error):
+        raise error
+
+    writable(task)
+    for directory, children, _ in os.walk(task, followlinks=False, onerror=fail):
+        for child in children:
+            writable(Path(directory) / child)
+    shutil.rmtree(task)
 
 
 class Broker:
@@ -146,7 +168,7 @@ class Broker:
                 self.lease.draining = True
                 raise RuntimeError("worker did not stop; runner quarantined")
             self.backend.cleanup(task, request)
-        shutil.rmtree(task)
+        remove_task_tree(task)
         with self.lock:
             self.task = self.request = self.worker = None
             self.phase, self.error, self.build_info = "IDLE", None, None
