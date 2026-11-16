@@ -20,6 +20,9 @@ done
 # Candidate build scripts cannot reach private networks or cloud metadata.
 sudo iptables -N MO_CONTAINER_OUT
 sudo iptables -A MO_CONTAINER_OUT -m conntrack --ctstate ESTABLISHED,RELATED -j RETURN
+# GitHub's host resolver can be private (for example 10.0.0.2). Docker
+# inherits it; permit only DNS to those exact endpoints before the RFC1918 fence.
+python3 scripts/container_dns.py
 for net in 10.0.0.0/8 100.64.0.0/10 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16; do
   sudo iptables -A MO_CONTAINER_OUT -d "$net" -j REJECT
 done
