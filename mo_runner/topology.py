@@ -15,7 +15,7 @@ def configure(root):
         name = "cn1" if index == 3 else role.lower()
         text = ('service-type = "' + role + '"\ndata-dir = "./data"\n'
                 '[log]\nlevel = "warn"\nmax-size = 64\n'
-                '[observability]\ndisableTrace = true\ndisableMetric = true\n'
+                '[observability]\ndisableTrace = false\ndisableMetric = true\n'
                 'status-port = ' + str(27080 + index) + '\n'
                 '[hakeeper-client]\nservice-addresses = ["127.0.0.1:27001"]\n')
         if role == "LOG":
